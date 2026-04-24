@@ -1,1 +1,411 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>政治獻金監獄檔案（2016）</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">PRISON FILES · 2016</div>
+      <nav>
+        <a href="#landing">首頁</a>
+        <a href="#results">結果列表</a>
+      </nav>
+    </header>
 
+    <main>
+      <section id="landing" class="view active">
+        <section class="hero">
+          <p class="label">Landing Page（專題首頁）</p>
+          <h1>金流不是背景音，而是候選人權力的牢門鑰匙。</h1>
+          <p>
+            Hero 敘事：政治獻金會影響候選人可見度、資源配置與政策路線。當資金來源高度集中，公共決策可能被少數利益綁架。
+            這份 2016 年資料，讓你看見選舉金流結構到底由誰主導。
+          </p>
+        </section>
+
+        <section class="search-entry">
+          <h2>搜尋入口（最重要 CTA）</h2>
+          <form id="searchForm">
+            <input id="searchInput" type="text" placeholder="輸入姓名、政黨、選區（例：柯建銘 / 民主進步黨 / 臺北市）" />
+            <button type="submit">立即查詢</button>
+          </form>
+          <p id="dataStatus" class="status">資料載入中...</p>
+
+          <div class="samples">
+            <h3>範例查詢（降低門檻）</h3>
+            <div class="chips">
+              <button class="chip" data-query="民主進步黨">民主進步黨</button>
+              <button class="chip" data-query="中國國民黨">中國國民黨</button>
+              <button class="chip" data-query="臺北市">臺北市</button>
+              <button class="chip" data-query="柯建銘">柯建銘</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="editors-picks">
+          <h2>編輯精選案例（editor’s picks）</h2>
+          <div id="picks" class="cards"></div>
+        </section>
+      </section>
+
+      <section id="results" class="view">
+        <div class="results-header">
+          <h2>Results List（結果列表頁）</h2>
+          <p id="resultMeta">尚未查詢</p>
+        </div>
+
+        <section class="quick-summary">
+          <h3>quick summary（關鍵數據）</h3>
+          <div id="summaryGrid" class="summary-grid"></div>
+        </section>
+
+        <section>
+          <div class="sort-row">
+            <label for="sortSelect">排序（ranking）</label>
+            <select id="sortSelect">
+              <option value="總收入_desc">總收入：高 → 低</option>
+              <option value="總收入_asc">總收入：低 → 高</option>
+              <option value="捐贈企業數_desc">捐贈企業數：高 → 低</option>
+              <option value="得票率_desc">得票率：高 → 低</option>
+              <option value="姓名_asc">姓名：A → Z</option>
+            </select>
+          </div>
+
+          <div id="resultsList" class="list"></div>
+          <div class="pager">
+            <button id="prevPage">上一頁</button>
+            <span id="pageInfo">第 1 頁</span>
+            <button id="nextPage">下一頁</button>
+          </div>
+        </section>
+      </section>
+
+      <section id="candidate" class="view">
+        <button id="backToResults" class="ghost">← 回到列表</button>
+        <h2 id="candidateName">Candidate Page</h2>
+        <p id="candidateMeta"></p>
+
+        <section>
+          <h3>Ranking summary: total, in party, in constituency</h3>
+          <div id="rankSummary" class="summary-grid"></div>
+        </section>
+
+        <section>
+          <h3>捐款細目</h3>
+          <div id="donationDetail" class="detail-grid"></div>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const state = {
+        rows: [],
+        filtered: [],
+        query: "",
+        currentPage: 1,
+        pageSize: 12,
+        sortKey: "總收入_desc",
+      };
+
+      const moneyFields = [
+        "總收入",
+        "個人捐贈收入",
+        "營利事業捐贈收入",
+        "政黨捐贈收入",
+        "人民團體捐贈收入",
+        "匿名捐贈收入",
+        "其他收入",
+        "總支出",
+      ];
+
+      const ratioFields = [
+        "個人捐贈比例",
+        "營利事業捐贈比例",
+        "捐贈企業數",
+        "得票率",
+      ];
+
+      const views = {
+        landing: document.getElementById("landing"),
+        results: document.getElementById("results"),
+        candidate: document.getElementById("candidate"),
+      };
+
+      function parseCSV(text) {
+        const rows = [];
+        const lines = text.replace(/^\uFEFF/, "").split(/\r?\n/).filter(Boolean);
+        if (!lines.length) return rows;
+
+        const headers = parseCSVLine(lines[0]);
+        for (let i = 1; i < lines.length; i++) {
+          const cols = parseCSVLine(lines[i]);
+          const row = {};
+          headers.forEach((h, idx) => {
+            row[h] = cols[idx] ?? "";
+          });
+
+          moneyFields.forEach((key) => {
+            row[`${key}_num`] = normalizeNumber(row[key]);
+          });
+
+          row["捐贈企業數_num"] = normalizeNumber(row["捐贈企業數"]);
+          row["得票率_num"] = normalizePercent(row["得票率"]);
+          rows.push(row);
+        }
+        return rows;
+      }
+
+      function parseCSVLine(line) {
+        const out = [];
+        let current = "";
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (ch === "," && !inQuotes) {
+            out.push(current);
+            current = "";
+          } else {
+            current += ch;
+          }
+        }
+        out.push(current);
+        return out.map((v) => v.trim());
+      }
+
+      function normalizeNumber(value) {
+        if (!value) return 0;
+        const clean = String(value).replace(/,/g, "").replace(/"/g, "").trim();
+        const num = Number(clean);
+        return Number.isFinite(num) ? num : 0;
+      }
+
+      function normalizePercent(value) {
+        if (!value) return 0;
+        const clean = String(value).replace("%", "").trim();
+        const num = Number(clean);
+        return Number.isFinite(num) ? num : 0;
+      }
+
+      function formatMoney(num) {
+        return new Intl.NumberFormat("zh-TW").format(Math.round(num));
+      }
+
+      function setView(target) {
+        Object.entries(views).forEach(([k, el]) => {
+          el.classList.toggle("active", k === target);
+        });
+      }
+
+      function applySearch(query) {
+        state.query = query.trim();
+        const q = state.query.toLowerCase();
+        state.filtered = state.rows.filter((r) => {
+          const hay = [r["姓名"], r["推薦政黨"], r["地區"]].join(" ").toLowerCase();
+          return hay.includes(q);
+        });
+        state.currentPage = 1;
+        applySort();
+        renderSummary();
+        renderList();
+        setView("results");
+        location.hash = "results";
+      }
+
+      function applySort() {
+        const [key, dir] = state.sortKey.split("_");
+        const mapKey = key === "總收入" ? "總收入_num" : key === "捐贈企業數" ? "捐贈企業數_num" : key === "得票率" ? "得票率_num" : "姓名";
+
+        state.filtered.sort((a, b) => {
+          const av = a[mapKey];
+          const bv = b[mapKey];
+          if (mapKey === "姓名") return dir === "asc" ? av.localeCompare(bv, "zh-Hant") : bv.localeCompare(av, "zh-Hant");
+          return dir === "asc" ? av - bv : bv - av;
+        });
+      }
+
+      function renderSummary() {
+        const grid = document.getElementById("summaryGrid");
+        const count = state.filtered.length;
+        const totalIncome = state.filtered.reduce((s, r) => s + r["總收入_num"], 0);
+        const avgIncome = count ? totalIncome / count : 0;
+        const top = state.filtered[0];
+
+        grid.innerHTML = [
+          card("查詢筆數", `${count} 人`),
+          card("總收入合計", `${formatMoney(totalIncome)} 元`),
+          card("平均總收入", `${formatMoney(avgIncome)} 元`),
+          card("最高總收入", top ? `${top["姓名"]}（${formatMoney(top["總收入_num"])}）` : "-"),
+        ].join("");
+
+        document.getElementById("resultMeta").textContent = `關鍵字「${state.query}」共 ${count} 筆`;
+      }
+
+      function renderList() {
+        const list = document.getElementById("resultsList");
+        const start = (state.currentPage - 1) * state.pageSize;
+        const pageRows = state.filtered.slice(start, start + state.pageSize);
+
+        if (!pageRows.length) {
+          list.innerHTML = `<div class="empty">查無資料，請更換關鍵字。</div>`;
+          document.getElementById("pageInfo").textContent = "第 0 / 0 頁";
+          return;
+        }
+
+        list.innerHTML = pageRows.map((r) => `
+          <article class="result-item">
+            <h4>${r["姓名"]}</h4>
+            <p>${r["推薦政黨"]}｜${r["地區"]}</p>
+            <p>總收入：${formatMoney(r["總收入_num"])} 元｜得票率：${r["得票率"]}</p>
+            <button data-name="${r["姓名"]}" class="open-candidate">查看 Candidate Page</button>
+          </article>
+        `).join("");
+
+        const totalPages = Math.ceil(state.filtered.length / state.pageSize);
+        document.getElementById("pageInfo").textContent = `第 ${state.currentPage} / ${totalPages} 頁`;
+      }
+
+      function renderPicks() {
+        const picks = [...state.rows]
+          .sort((a, b) => b["總收入_num"] - a["總收入_num"])
+          .slice(0, 3);
+
+        document.getElementById("picks").innerHTML = picks
+          .map((r) => `
+            <article class="card">
+              <h4>${r["姓名"]}</h4>
+              <p>${r["推薦政黨"]}｜${r["地區"]}</p>
+              <p>總收入 ${formatMoney(r["總收入_num"])} 元</p>
+              <button data-name="${r["姓名"]}" class="open-candidate">打開候選人檔案</button>
+            </article>
+          `)
+          .join("");
+      }
+
+      function rankInGroup(target, rows, key) {
+        const sorted = [...rows].sort((a, b) => b[key] - a[key]);
+        return sorted.findIndex((r) => r["姓名"] === target["姓名"]) + 1;
+      }
+
+      function openCandidate(name) {
+        const candidate = state.rows.find((r) => r["姓名"] === name);
+        if (!candidate) return;
+
+        document.getElementById("candidateName").textContent = `${candidate["姓名"]} · Candidate Page`;
+        document.getElementById("candidateMeta").textContent = `${candidate["推薦政黨"]}｜${candidate["地區"]}｜得票率 ${candidate["得票率"]}`;
+
+        const partyRows = state.rows.filter((r) => r["推薦政黨"] === candidate["推薦政黨"]);
+        const areaRows = state.rows.filter((r) => r["地區"] === candidate["地區"]);
+
+        document.getElementById("rankSummary").innerHTML = [
+          card("total", `#${rankInGroup(candidate, state.rows, "總收入_num")} / ${state.rows.length}`),
+          card("in party", `#${rankInGroup(candidate, partyRows, "總收入_num")} / ${partyRows.length}`),
+          card("in constituency", `#${rankInGroup(candidate, areaRows, "總收入_num")} / ${areaRows.length}`),
+        ].join("");
+
+        const detail = [];
+        moneyFields.forEach((k) => {
+          detail.push(`<div><span>${k}</span><strong>${formatMoney(candidate[`${k}_num`])} 元</strong></div>`);
+        });
+        ratioFields.forEach((k) => {
+          detail.push(`<div><span>${k}</span><strong>${candidate[k] || "-"}</strong></div>`);
+        });
+
+        document.getElementById("donationDetail").innerHTML = detail.join("");
+        setView("candidate");
+        location.hash = "candidate";
+      }
+
+      function card(title, value) {
+        return `<div class="card"><p>${title}</p><strong>${value}</strong></div>`;
+      }
+
+      async function loadData() {
+        const status = document.getElementById("dataStatus");
+        const candidatePaths = ["2016.csv", "2016.csv.csv"];
+
+        for (const path of candidatePaths) {
+          try {
+            const res = await fetch(path);
+            if (!res.ok) continue;
+            const text = await res.text();
+            state.rows = parseCSV(text);
+            status.textContent = `已載入 ${state.rows.length} 筆資料（來源：${path}）`;
+            renderPicks();
+            return;
+          } catch (err) {}
+        }
+
+        status.textContent = "載入失敗：找不到 2016.csv 檔案。";
+      }
+
+      document.getElementById("searchForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const q = document.getElementById("searchInput").value;
+        if (!q.trim()) return;
+        applySearch(q);
+      });
+
+      document.getElementById("sortSelect").addEventListener("change", (e) => {
+        state.sortKey = e.target.value;
+        applySort();
+        renderList();
+      });
+
+      document.getElementById("prevPage").addEventListener("click", () => {
+        if (state.currentPage <= 1) return;
+        state.currentPage--;
+        renderList();
+      });
+
+      document.getElementById("nextPage").addEventListener("click", () => {
+        const totalPages = Math.ceil(state.filtered.length / state.pageSize);
+        if (state.currentPage >= totalPages) return;
+        state.currentPage++;
+        renderList();
+      });
+
+      document.getElementById("picks").addEventListener("click", (e) => {
+        const btn = e.target.closest(".open-candidate");
+        if (!btn) return;
+        openCandidate(btn.dataset.name);
+      });
+
+      document.getElementById("resultsList").addEventListener("click", (e) => {
+        const btn = e.target.closest(".open-candidate");
+        if (!btn) return;
+        openCandidate(btn.dataset.name);
+      });
+
+      document.querySelectorAll(".chip").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const q = btn.dataset.query;
+          document.getElementById("searchInput").value = q;
+          applySearch(q);
+        });
+      });
+
+      document.getElementById("backToResults").addEventListener("click", () => {
+        setView("results");
+        location.hash = "results";
+      });
+
+      window.addEventListener("hashchange", () => {
+        const h = location.hash.replace("#", "");
+        if (views[h]) setView(h);
+      });
+
+      loadData();
+    </script>
+  </body>
+</html>
