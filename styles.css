@@ -1,0 +1,195 @@
+:root {
+  --bg: #111;
+  --panel: #1a1a1a;
+  --ink: #f1f1f1;
+  --muted: #b3b3b3;
+  --accent: #d6a54f;
+  --line: #3b3b3b;
+  --danger: #7a1515;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  color: var(--ink);
+  background: repeating-linear-gradient(
+      90deg,
+      rgba(214, 165, 79, 0.08) 0,
+      rgba(214, 165, 79, 0.08) 2px,
+      transparent 2px,
+      transparent 24px
+    ),
+    linear-gradient(180deg, #0d0d0d, #151515 40%, #101010);
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: rgba(10, 10, 10, 0.95);
+  border-bottom: 2px solid var(--line);
+}
+
+.brand {
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+
+nav a {
+  color: var(--ink);
+  text-decoration: none;
+  margin-left: 12px;
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+}
+
+.hero,
+.search-entry,
+.editors-picks,
+.quick-summary,
+#candidate section,
+.results-header,
+.sort-row {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--danger);
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+.label {
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+h1,
+h2,
+h3 {
+  margin-top: 0;
+}
+
+.status {
+  color: var(--muted);
+}
+
+input,
+select,
+button {
+  background: #101010;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: 10px 12px;
+}
+
+button {
+  cursor: pointer;
+}
+
+#searchForm {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+#searchInput {
+  flex: 1;
+  min-width: 300px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border-color: var(--accent);
+}
+
+.cards,
+.summary-grid,
+.detail-grid,
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.card,
+.result-item,
+.detail-grid > div {
+  background: #131313;
+  border: 1px solid var(--line);
+  padding: 12px;
+}
+
+.card p,
+.result-item p {
+  color: var(--muted);
+  margin: 6px 0;
+}
+
+.result-item h4,
+.card h4 {
+  margin: 0 0 6px;
+}
+
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pager {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+
+.ghost {
+  margin-bottom: 10px;
+  border-color: var(--accent);
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 30px;
+}
+
+.detail-grid > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+@media (max-width: 768px) {
+  #searchInput {
+    min-width: 100%;
+  }
+}
